@@ -47,34 +47,31 @@
  */
 
 
-static int ChnMatchPNG _ANSI_ARGS_((Tcl_Interp *interp, Tcl_Channel chan, Arg fileName,
-	Arg formatString, int *widthPtr, int *heightPtr));
-static int FileMatchPNG _ANSI_ARGS_((FILE *f, char *fileName,
-	Arg formatString, int *widthPtr, int *heightPtr));
-static int ObjMatchPNG _ANSI_ARGS_((Tcl_Interp *interp, struct Tcl_Obj *dataObj,
-	Arg formatString, int *widthPtr, int *heightPtr));
+static int ChnMatchPNG _ANSI_ARGS_((Tcl_Interp *interp,Tcl_Channel chan, Tcl_Obj *fileName,
+	Tcl_Obj *format, int *widthPtr, int *heightPtr));
+static int ObjMatchPNG _ANSI_ARGS_((Tcl_Interp *interp, Tcl_Obj *dataObj,
+	Tcl_Obj *format, int *widthPtr, int *heightPtr));
 static int ChnReadPNG _ANSI_ARGS_((Tcl_Interp *interp, Tcl_Channel chan,
-	Arg fileName, Arg formatString, Tk_PhotoHandle imageHandle,
+	Tcl_Obj *fileName, Tcl_Obj *format, Tk_PhotoHandle imageHandle,
 	int destX, int destY, int width, int height, int srcX, int srcY));
-static int ObjReadPNG _ANSI_ARGS_((Tcl_Interp *interp, struct Tcl_Obj *dataObj,
-	Arg formatString, Tk_PhotoHandle imageHandle,
+static int ObjReadPNG _ANSI_ARGS_((Tcl_Interp *interp, Tcl_Obj *dataObj,
+	Tcl_Obj *format, Tk_PhotoHandle imageHandle,
 	int destX, int destY, int width, int height, int srcX, int srcY));
-static int FileWritePNG _ANSI_ARGS_((Tcl_Interp *interp, char *filename,
-	Arg formatString, Tk_PhotoImageBlock *blockPtr));
+static int ChnWritePNG _ANSI_ARGS_((Tcl_Interp *interp, char *filename,
+	Tcl_Obj *format, Tk_PhotoImageBlock *blockPtr));
 static int StringWritePNG _ANSI_ARGS_((Tcl_Interp *interp,
-	Tcl_DString *dataPtr, Arg formatString,
+	Tcl_DString *dataPtr, Tcl_Obj *format,
 	Tk_PhotoImageBlock *blockPtr));
 
 Tk_PhotoImageFormat imgFmtPNG = {
-    "PNG",		/* name */
+    "PNG",					/* name */
     ChnMatchPNG,	/* fileMatchProc */
     ObjMatchPNG,	/* stringMatchProc */
-    ChnReadPNG,		/* fileReadProc */
-    ObjReadPNG,		/* stringReadProc */
-    FileWritePNG,	/* fileWriteProc */
+    ChnReadPNG,	/* fileReadProc */
+    ObjReadPNG,	/* stringReadProc */
+    ChnWritePNG,	/* fileWriteProc */
     StringWritePNG,	/* stringWriteProc */
 };
-
 
 /*
  * Prototypes for local procedures defined in this file:
@@ -82,25 +79,97 @@ Tk_PhotoImageFormat imgFmtPNG = {
 
 static int CommonMatchPNG _ANSI_ARGS_((MFile *handle, int *widthPtr,
 	int *heightPtr));
-static int CommonReadPNG _ANSI_ARGS_((png_structp png_ptr, Arg formatString,
+static int CommonReadPNG _ANSI_ARGS_((png_structp png_ptr, Tcl_Obj *format,
 	Tk_PhotoHandle imageHandle, int destX, int destY, int width,
 	int height, int srcX, int srcY));
 static int CommonWritePNG _ANSI_ARGS_((Tcl_Interp *interp, png_structp png_ptr,
-	png_infop info_ptr, Arg formatString,
+	png_infop info_ptr, Tcl_Obj *format,
 	Tk_PhotoImageBlock *blockPtr));
 static void tk_png_error _ANSI_ARGS_((png_structp, png_const_charp));
 static void tk_png_warning _ANSI_ARGS_((png_structp, png_const_charp));
 
 /*
- * these are for the BASE64 image reader code only
+ * These functions are used for all Input/Output.
  */
 
-static void	tk_png_memread _ANSI_ARGS_((png_structp, png_bytep,
+static void	tk_png_read _ANSI_ARGS_((png_structp, png_bytep,
 		    png_size_t));
-static void	tk_png_memwrite _ANSI_ARGS_((png_structp, png_bytep,
+static void	tk_png_write _ANSI_ARGS_((png_structp, png_bytep,
 		    png_size_t));
-static void	tk_png_chanread _ANSI_ARGS_((png_structp, png_bytep,
-		    png_size_t));
+
+#ifndef _LANG 
+
+static struct PngFunctions {
+    VOID *handle;
+    png_structp (* create_read_struct) _ANSI_ARGS_((png_const_charp,
+	png_voidp, png_error_ptr, png_error_ptr));
+    png_infop (* create_info_struct) _ANSI_ARGS_((png_structp));
+    png_structp (* create_write_struct) _ANSI_ARGS_((png_const_charp,
+	png_voidp, png_error_ptr, png_error_ptr));
+    void (* destroy_read_struct) _ANSI_ARGS_((png_structpp,
+	png_infopp, png_infopp));
+    void (* destroy_write_struct) _ANSI_ARGS_((png_structpp, png_infopp));
+    void (* error) _ANSI_ARGS_((png_structp, png_charp));
+    png_byte (* get_channels) _ANSI_ARGS_((png_structp, png_infop));
+    png_voidp (* get_error_ptr) _ANSI_ARGS_((png_structp));
+    png_voidp (* get_progressive_ptr) _ANSI_ARGS_((png_structp));
+    png_uint_32 (* get_rowbytes) _ANSI_ARGS_((png_structp, png_infop));
+    png_uint_32 (* get_IHDR) _ANSI_ARGS_((png_structp, png_infop,
+	   png_uint_32*, png_uint_32*, int*, int*, int*, int*, int*));
+    png_uint_32 (* get_valid) _ANSI_ARGS_((png_structp, png_infop, png_uint_32));
+    void (* init_io) _ANSI_ARGS_((png_structp, FILE *));
+    void (* read_image) _ANSI_ARGS_((png_structp, png_bytepp));
+    void (* read_info) _ANSI_ARGS_((png_structp, png_infop));
+    void (* read_update_info) _ANSI_ARGS_((png_structp, png_infop));
+    int (* set_interlace_handling) _ANSI_ARGS_ ((png_structp));
+    void (* set_read_fn) _ANSI_ARGS_((png_structp, png_voidp, png_rw_ptr));
+    void (* set_text) _ANSI_ARGS_((png_structp, png_infop, png_textp, int));
+    void (* set_write_fn) _ANSI_ARGS_((png_structp, png_voidp,
+	    png_rw_ptr, png_voidp));
+    void (* set_IHDR) _ANSI_ARGS_((png_structp, png_infop, png_uint_32,
+	    png_uint_32, int, int, int, int, int));
+    void (* write_end) _ANSI_ARGS_((png_structp, png_infop));
+    void (* write_info) _ANSI_ARGS_((png_structp, png_infop));
+    void (* write_row) _ANSI_ARGS_((png_structp, png_bytep));
+    void (* set_expand) _ANSI_ARGS_((png_structp));
+    void (* set_filler) _ANSI_ARGS_((png_structp, png_uint_32, int));
+    void (* set_strip_16) _ANSI_ARGS_((png_structp));
+} png = {0};
+
+static char *symbols[] = {
+    "png_create_read_struct",
+    "png_create_info_struct",
+    "png_create_write_struct",
+    "png_destroy_read_struct",
+    "png_destroy_write_struct",
+    "png_error",
+    "png_get_channels",
+    "png_get_error_ptr",
+    "png_get_progressive_ptr",
+    "png_get_rowbytes",
+    "png_get_IHDR",
+    "png_get_valid",
+    "png_init_io",
+    "png_read_image",
+    "png_read_info",
+    "png_read_update_info",
+    "png_set_interlace_handling",
+    "png_set_read_fn",
+    "png_set_text",
+    "png_set_write_fn",
+    "png_set_IHDR",
+    "png_write_end",
+    "png_write_info",
+    "png_write_row",
+    /* The following symbols are not crucial. All of them
+       are checked at runtime. */
+    "png_set_expand",
+    "png_set_filler",
+    "png_set_strip_16",
+    (char *) NULL
+};
+
+#endif
 
 typedef struct cleanup_info {
     Tcl_Interp *interp;
@@ -132,7 +201,7 @@ tk_png_warning(png_ptr, error_msg)
 }
 
 static void
-tk_png_memread(png_ptr, data, length)
+tk_png_read(png_ptr, data, length)
     png_structp png_ptr;
     png_bytep data;
     png_size_t length;
@@ -144,7 +213,7 @@ tk_png_memread(png_ptr, data, length)
 }
 
 static void
-tk_png_memwrite(png_ptr, data, length)
+tk_png_write(png_ptr, data, length)
     png_structp png_ptr;
     png_bytep data;
     png_size_t length;
@@ -155,23 +224,11 @@ tk_png_memwrite(png_ptr, data, length)
     }
 }
 
-static void
-tk_png_chanread(png_ptr, data, length)
-    png_structp png_ptr;
-    png_bytep data;
-    png_size_t length;
-{
-    if (Tcl_Read((Tcl_Channel) png_get_progressive_ptr(png_ptr),
-    	    (char *) data, (size_t) length) != (int) length) {
-	png_error(png_ptr, "Read Error");
-    }
-}
-
-static int ChnMatchPNG(interp, chan, fileName, formatString, widthPtr, heightPtr)
+static int ChnMatchPNG(interp, chan, fileName, format, widthPtr, heightPtr)
     Tcl_Interp *interp;
     Tcl_Channel chan;
-    Arg fileName;
-    Arg formatString;
+    Tcl_Obj *fileName;
+    Tcl_Obj *format;
     int *widthPtr, *heightPtr;
 {
     MFile handle;
@@ -182,24 +239,10 @@ static int ChnMatchPNG(interp, chan, fileName, formatString, widthPtr, heightPtr
     return CommonMatchPNG(&handle, widthPtr, heightPtr);
 }
 
-static int FileMatchPNG(f, fileName, formatString, widthPtr, heightPtr)
-    FILE *f;
-    char *fileName;
-    Arg formatString;
-    int *widthPtr, *heightPtr;
-{
-    MFile handle;
-
-    handle.data = (char *) f;
-    handle.state = IMG_FILE;
-
-    return CommonMatchPNG(&handle, widthPtr, heightPtr);
-}
-
-static int ObjMatchPNG(interp, dataObj, formatString, widthPtr, heightPtr)
+static int ObjMatchPNG(interp, dataObj, format, widthPtr, heightPtr)
     Tcl_Interp *interp;
-    struct Tcl_Obj *dataObj;
-    Arg formatString;
+    Tcl_Obj *dataObj;
+    Tcl_Obj *format;
     int *widthPtr, *heightPtr;
 {
     MFile handle;
@@ -227,20 +270,45 @@ static int CommonMatchPNG(handle, widthPtr, heightPtr)
     *heightPtr = (buf[4]<<24) + (buf[5]<<16) + (buf[6]<<8) + buf[7];
     return 1;
 }
+                                          
 
-static int ChnReadPNG(interp, chan, fileName, formatString, imageHandle,
+static int
+load_png_library(interp)
+    Tcl_Interp *interp;
+{   
+#ifndef _LANG
+    if (ImgLoadLib(interp, PNG_LIB_NAME, &png.handle, symbols, 23)
+	    != TCL_OK) {
+	return TCL_ERROR;
+    }
+#endif
+    return TCL_OK;
+}
+
+static int ChnReadPNG(interp, chan, fileName, format, imageHandle,
 	destX, destY, width, height, srcX, srcY)
     Tcl_Interp *interp;
     Tcl_Channel chan;
-    Arg fileName;
-    Arg formatString;
+    Tcl_Obj *fileName;
+    Tcl_Obj *format;
     Tk_PhotoHandle imageHandle;
     int destX, destY;
     int width, height;
     int srcX, srcY;
 {
     png_structp png_ptr;
+    MFile handle;
     cleanup_info cleanup;
+
+    cleanup.interp = interp;
+    cleanup.data = NULL;
+
+    if (load_png_library(interp) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    handle.data = (char *) chan;
+    handle.state = IMG_CHAN;
 
     cleanup.interp = interp;
     cleanup.data = NULL;
@@ -249,17 +317,17 @@ static int ChnReadPNG(interp, chan, fileName, formatString, imageHandle,
 	    (png_voidp) &cleanup,tk_png_error,tk_png_warning);
     if (!png_ptr) return(0); 
 
-    png_set_read_fn(png_ptr, (png_voidp) chan, tk_png_chanread);
+    png_set_read_fn(png_ptr, (png_voidp) &handle, tk_png_read);
 
-    return CommonReadPNG(png_ptr, formatString, imageHandle, destX, destY,
+    return CommonReadPNG(png_ptr, format, imageHandle, destX, destY,
 	    width, height, srcX, srcY);
 }
 
-static int ObjReadPNG(interp, dataObj, formatString, imageHandle,
+static int ObjReadPNG(interp, dataObj, format, imageHandle,
 	destX, destY, width, height, srcX, srcY)
     Tcl_Interp *interp;
-    struct Tcl_Obj *dataObj;
-    Arg formatString;
+    Tcl_Obj *dataObj;
+    Tcl_Obj *format;
     Tk_PhotoHandle imageHandle;
     int destX, destY;
     int width, height;
@@ -278,9 +346,9 @@ static int ObjReadPNG(interp, dataObj, formatString, imageHandle,
 
     ImgReadInit(dataObj,'\211',&handle);
 
-    png_set_read_fn(png_ptr,(png_voidp) &handle, tk_png_memread);
+    png_set_read_fn(png_ptr,(png_voidp) &handle, tk_png_read);
 
-    return CommonReadPNG(png_ptr, formatString, imageHandle, destX, destY,
+    return CommonReadPNG(png_ptr, format, imageHandle, destX, destY,
 	    width, height, srcX, srcY);
 }
 
@@ -292,10 +360,10 @@ typedef struct myblock {
 
 #define block bl.ck
 
-static int CommonReadPNG(png_ptr, formatString, imageHandle, destX, destY,
+static int CommonReadPNG(png_ptr, format, imageHandle, destX, destY,
 	width, height, srcX, srcY)
     png_structp png_ptr;
-    Arg formatString;
+    Tcl_Obj *format;
     Tk_PhotoHandle imageHandle;
     int destX, destY;
 #ifdef __GNUC__
@@ -374,7 +442,8 @@ static int CommonReadPNG(png_ptr, formatString, imageHandle, destX, destY,
     block.width = width;
     block.height = height;
 
-    if (color_type & PNG_COLOR_MASK_ALPHA) {
+    if ((color_type & PNG_COLOR_MASK_ALPHA)
+	    || png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS)) {
 	/* with alpha channel */
 	block.offset[3] = block.pixelSize - 1;
     } else {
@@ -405,10 +474,10 @@ static int CommonReadPNG(png_ptr, formatString, imageHandle, destX, destY,
     return(TCL_OK);
 }
 
-static int FileWritePNG(interp, filename, formatString, blockPtr)
+static int ChnWritePNG(interp, filename, format, blockPtr)
     Tcl_Interp *interp;
     char *filename;
-    Arg formatString;
+    Tcl_Obj *format;
     Tk_PhotoImageBlock *blockPtr;
 {
     FILE *outfile = NULL;
@@ -448,15 +517,15 @@ static int FileWritePNG(interp, filename, formatString, blockPtr)
 
     png_init_io(png_ptr,outfile);
 
-    result = CommonWritePNG(interp, png_ptr, info_ptr, formatString, blockPtr);
+    result = CommonWritePNG(interp, png_ptr, info_ptr, format, blockPtr);
     fclose(outfile);
     return result;
 }
 
-static int StringWritePNG(interp, dataPtr, formatString, blockPtr)
+static int StringWritePNG(interp, dataPtr, format, blockPtr)
     Tcl_Interp *interp;
     Tcl_DString *dataPtr;
-    Arg formatString;
+    Tcl_Obj *format;
     Tk_PhotoImageBlock *blockPtr;
 {
     png_structp png_ptr;
@@ -478,39 +547,34 @@ static int StringWritePNG(interp, dataPtr, formatString, blockPtr)
 	return TCL_ERROR;
     }
 
-    png_set_write_fn(png_ptr,(png_voidp) &handle, tk_png_memwrite, (png_voidp) NULL);
+    png_set_write_fn(png_ptr,(png_voidp) &handle, tk_png_write, (png_voidp) NULL);
 
     ImgWriteInit(dataPtr, &handle);
 
-    result = CommonWritePNG(interp, png_ptr, info_ptr, formatString, blockPtr);
+    result = CommonWritePNG(interp, png_ptr, info_ptr, format, blockPtr);
     ImgPutc(IMG_DONE, &handle);
     return result;
 }
 
-static int CommonWritePNG(interp, png_ptr, info_ptr, formatString, blockPtr)
+static int CommonWritePNG(interp, png_ptr, info_ptr, format, blockPtr)
     Tcl_Interp *interp;
     png_structp png_ptr;
     png_infop info_ptr;
-    Arg formatString;
+    Tcl_Obj *format;
     Tk_PhotoImageBlock *blockPtr;
 {
     int greenOffset, blueOffset, alphaOffset;
     int tagcount = 0;
-    Arg *tags = NULL;
+    Tcl_Obj **tags = (Tcl_Obj **) NULL;
     int I, pass, number_passes, color_type;  
     int newPixelSize;
     png_bytep row_pointers;
-    png_textp text = NULL;
+    png_textp text = (png_textp) NULL;
 
-    if (formatString != NULL) {
-	if (Tcl_ListObjGetElements(interp,formatString,&tagcount,&tags)!=TCL_OK) {
-	    Tcl_AppendResult(interp,"invalid format: \"",
-		    LangString(formatString), "\"",         NULL); 
-	    return TCL_ERROR;
-	}
-	tagcount = tagcount/2 - 1;
-	if (tagcount < 0) {tagcount = 0;}
+    if (ImgListObjGetElements(interp, format, &tagcount, &tags) != TCL_OK) {
+	return TCL_ERROR;
     }
+    tagcount = (tagcount > 1) ? (tagcount/2 - 1) : 0;
 
     if (setjmp(*(jmp_buf *)png_ptr)) {
 	if (text) {
@@ -563,10 +627,11 @@ static int CommonWritePNG(interp, png_ptr, info_ptr, formatString, blockPtr)
     if (tagcount > 0) {
 	png_text text;
 	for(I=0;I<tagcount;I++) {
+	    int length;
 	    text.compression = 0;
-	    text.key = LangString(tags[2*I+1]);
-	    text.text = LangString(tags[2*I+2]);
-	    text.text_length=strlen(text.text);
+	    text.key = Tcl_GetStringFromObj(tags[2*I+1], (int *) NULL);
+	    text.text = Tcl_GetStringFromObj(tags[2*I+2], &length);
+	    text.text_length = length;
 	    if (text.text_length>COMPRESS_THRESHOLD) { 
 		text.compression = -1;
 	    }
@@ -584,7 +649,7 @@ static int CommonWritePNG(interp, png_ptr, info_ptr, formatString, blockPtr)
 	row_pointers = (png_bytep)
 		ckalloc(blockPtr->width * newPixelSize);
 	for (pass = 0; pass < number_passes; pass++) {
-	    for(I=0;I<blockPtr->height;I++) {
+	    for(I=0; I<blockPtr->height; I++) {
 		src = (png_bytep) blockPtr->pixelPtr
 			+ I * blockPtr->pitch + blockPtr->offset[0];
 		dst = row_pointers;

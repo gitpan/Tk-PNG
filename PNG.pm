@@ -2,13 +2,13 @@ package Tk::PNG;
 require DynaLoader;
 
 use vars qw($VERSION);
-$VERSION = '2.002'; # $Id: //depot/tkPNG/PNG.pm#3$
+$VERSION = '2.003'; # $Id: //depot/tkPNG/PNG.pm#4 $
 
 use Tk 800.005;
 require Tk::Image;
 require Tk::Photo;
 
-@ISA = qw(DynaLoader);
+use base qw(DynaLoader);
 
 bootstrap Tk::PNG $Tk::VERSION;
 
