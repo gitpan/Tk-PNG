@@ -1,0 +1,6 @@
+%$
+\.[oad]$
+\.(bak|old|bs)$
+\bblib\b
+\b(Makefile|pm_to_blib)$
+\bPNG.c

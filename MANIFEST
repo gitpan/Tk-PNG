@@ -1,0 +1,9 @@
+MANIFEST			This file
+MANIFEST.SKIP			Things to not list here, e.g. derived files
+Makefile.PL			How to build it
+PNG.pm				The module
+PNG.xs				The interface file
+README
+imgPNG.c			The C code that interfaces to libpng
+pngtest.png			Sample png file (used for testing)
+t/basic.t			A test case 
