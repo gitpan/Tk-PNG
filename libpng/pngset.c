@@ -1,7 +1,7 @@
 
 /* pngset.c - storage of image information into info struct
  *
- * libpng 1.0.3 - January 14, 1999
+ * libpng 1.0.5 - October 15, 1999
  * For conditions of distribution and use, see copyright notice in png.h
  * Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.
  * Copyright (c) 1996, 1997 Andreas Dilger
@@ -107,7 +107,7 @@ png_set_IHDR(png_structp png_ptr, png_infop info_ptr,
 
    /* check for overflow */
    rowbytes_per_pixel = (info_ptr->pixel_depth + 7) >> 3;
-   if (( width > (png_uint_32)2147483647L/rowbytes_per_pixel))
+   if (( width > PNG_MAX_UINT/rowbytes_per_pixel))
    {
       png_warning(png_ptr,
          "Width too large to process image data; rowbytes will overflow.");
@@ -249,7 +249,7 @@ png_set_sRGB_gAMA_and_cHRM(png_structp png_ptr, png_infop info_ptr,
    png_set_sRGB(png_ptr, info_ptr, intent);
 
 #if defined(PNG_READ_gAMA_SUPPORTED) || defined(PNG_WRITE_gAMA_SUPPORTED)
-   file_gamma = (float).45;
+   file_gamma = (float).45455;
    png_set_gAMA(png_ptr, info_ptr, file_gamma);
 #endif
 
@@ -344,7 +344,8 @@ void
 png_set_tIME(png_structp png_ptr, png_infop info_ptr, png_timep mod_time)
 {
    png_debug1(1, "in %s storage function\n", "tIME");
-   if (png_ptr == NULL || info_ptr == NULL)
+   if (png_ptr == NULL || info_ptr == NULL ||
+       (png_ptr->flags & PNG_FLAG_WROTE_tIME))
       return;
 
    png_memcpy(&(info_ptr->mod_time), mod_time, sizeof (png_time));
@@ -378,3 +379,13 @@ png_set_tRNS(png_structp png_ptr, png_infop info_ptr,
 }
 #endif
 
+#if defined(PNG_READ_EMPTY_PLTE_SUPPORTED)
+void
+png_permit_empty_plte (png_structp png_ptr, int empty_plte_permitted)
+{
+   png_debug1(1, "in png_permit_empty_plte\n", "");
+   if (png_ptr == NULL)
+      return;
+   png_ptr->empty_plte_permitted=(png_byte)empty_plte_permitted;
+}
+#endif

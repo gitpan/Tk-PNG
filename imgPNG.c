@@ -3,7 +3,7 @@
  *
  * A photo image file handler for PNG files.
  *
- * Uses the libpng.so library, which is dynamically
+ * Uses the libpng_so library, which is dynamically
  * loaded only when used.
  *
  */
@@ -23,7 +23,7 @@
 #undef EXTERN
 
 #ifdef MAC_TCL
-#include "libpng:png_h"
+#include "libpng:png.h"
 #else
 #ifdef HAVE_IMG_H
 #   include <png.h>
@@ -37,7 +37,7 @@
 #endif
 
 #ifndef PNG_LIB_NAME
-#define PNG_LIB_NAME "libpng.so"
+#define PNG_LIB_NAME "libpng_so"
 #endif
 
 #define COMPRESS_THRESHOLD 1024
@@ -64,7 +64,7 @@ static int StringWritePNG _ANSI_ARGS_((Tcl_Interp *interp,
 	Tk_PhotoImageBlock *blockPtr));
 
 Tk_PhotoImageFormat imgFmtPNG = {
-    "PNG",					/* name */
+    "png",					/* name */
     ChnMatchPNG,	/* fileMatchProc */
     ObjMatchPNG,	/* stringMatchProc */
     ChnReadPNG,	/* fileReadProc */
@@ -97,7 +97,7 @@ static void	tk_png_read _ANSI_ARGS_((png_structp, png_bytep,
 static void	tk_png_write _ANSI_ARGS_((png_structp, png_bytep,
 		    png_size_t));
 
-#ifndef _LANG 
+#ifndef _LANG
 
 static struct PngFunctions {
     VOID *handle;
@@ -134,6 +134,12 @@ static struct PngFunctions {
     void (* set_expand) _ANSI_ARGS_((png_structp));
     void (* set_filler) _ANSI_ARGS_((png_structp, png_uint_32, int));
     void (* set_strip_16) _ANSI_ARGS_((png_structp));
+    png_uint_32 (* get_sRGB) _ANSI_ARGS_((png_structp, png_infop, int *));
+    void (* set_sRGB) _ANSI_ARGS_((png_structp, png_infop, int));
+    png_uint_32 (* get_gAMA) _ANSI_ARGS_((png_structp, png_infop, double *));
+    void (* set_gAMA) PNGARG((png_structp png_ptr, png_infop, double));
+    void (* set_gamma) _ANSI_ARGS_((png_structp, double, double));
+    void (* set_sRGB_gAMA_and_cHRM) _ANSI_ARGS_((png_structp, png_infop, int));
 } png = {0};
 
 static char *symbols[] = {
@@ -166,6 +172,12 @@ static char *symbols[] = {
     "png_set_expand",
     "png_set_filler",
     "png_set_strip_16",
+    "png_get_sRGB",
+    "png_set_sRGB",
+    "png_get_gAMA",
+    "png_set_gAMA",
+    "png_set_gamma",
+    "png_set_sRGB_gAMA_and_cHRM",
     (char *) NULL
 };
 
@@ -233,21 +245,25 @@ static int ChnMatchPNG(interp, chan, fileName, format, widthPtr, heightPtr)
 {
     MFile handle;
 
+    ImgFixChanMatchProc(&interp, &chan, &fileName, &format, &widthPtr, &heightPtr);
+
     handle.data = (char *) chan;
     handle.state = IMG_CHAN;
 
     return CommonMatchPNG(&handle, widthPtr, heightPtr);
 }
 
-static int ObjMatchPNG(interp, dataObj, format, widthPtr, heightPtr)
+static int ObjMatchPNG(interp, data, format, widthPtr, heightPtr)
     Tcl_Interp *interp;
-    Tcl_Obj *dataObj;
+    Tcl_Obj *data;
     Tcl_Obj *format;
     int *widthPtr, *heightPtr;
 {
     MFile handle;
 
-    if (!ImgReadInit(dataObj,'\211',&handle)) {
+    ImgFixObjMatchProc(&interp, &data, &format, &widthPtr, &heightPtr);
+
+    if (!ImgReadInit(data,'\211',&handle)) {
 	return 0;
     }
     return CommonMatchPNG(&handle, widthPtr, heightPtr);
@@ -270,14 +286,14 @@ static int CommonMatchPNG(handle, widthPtr, heightPtr)
     *heightPtr = (buf[4]<<24) + (buf[5]<<16) + (buf[6]<<8) + buf[7];
     return 1;
 }
-                                          
+
 
 static int
 load_png_library(interp)
     Tcl_Interp *interp;
-{   
+{
 #ifndef _LANG
-    if (ImgLoadLib(interp, PNG_LIB_NAME, &png.handle, symbols, 23)
+    if (ImgLoadLib(interp, PNG_LIB_NAME, &png_handle, symbols, 23)
 	    != TCL_OK) {
 	return TCL_ERROR;
     }
@@ -315,7 +331,7 @@ static int ChnReadPNG(interp, chan, fileName, format, imageHandle,
 
     png_ptr=png_create_read_struct(PNG_LIBPNG_VER_STRING,
 	    (png_voidp) &cleanup,tk_png_error,tk_png_warning);
-    if (!png_ptr) return(0); 
+    if (!png_ptr) return(0);
 
     png_set_read_fn(png_ptr, (png_voidp) &handle, tk_png_read);
 
@@ -342,7 +358,7 @@ static int ObjReadPNG(interp, dataObj, format, imageHandle,
 
     png_ptr=png_create_read_struct(PNG_LIBPNG_VER_STRING,
 	    (png_voidp) &cleanup,tk_png_error,tk_png_warning);
-    if (!png_ptr) return TCL_ERROR; 
+    if (!png_ptr) return TCL_ERROR;
 
     ImgReadInit(dataObj,'\211',&handle);
 
@@ -367,7 +383,7 @@ static int CommonReadPNG(png_ptr, format, imageHandle, destX, destY,
     Tk_PhotoHandle imageHandle;
     int destX, destY;
 #ifdef __GNUC__
-    volatile   
+    volatile
 #endif
     int width, height;
     int srcX, srcY;
@@ -379,6 +395,7 @@ static int CommonReadPNG(png_ptr, format, imageHandle, destX, destY,
     unsigned int I;
     png_uint_32 info_width, info_height;
     int bit_depth, color_type, interlace_type;
+    int intent;
 
     info_ptr=png_create_info_struct(png_ptr);
     if (!info_ptr) {
@@ -396,7 +413,6 @@ static int CommonReadPNG(png_ptr, format, imageHandle, destX, destY,
 	png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
 	return TCL_ERROR;
     }
-
 
     png_read_info(png_ptr,info_ptr);
 
@@ -451,6 +467,16 @@ static int CommonReadPNG(png_ptr, format, imageHandle, destX, destY,
 	block.offset[3] = 0;
     }
 
+    if (png_get_sRGB && png_get_sRGB(png_ptr, info_ptr, &intent)) {
+	png_set_sRGB(png_ptr, info_ptr, intent);
+    } else if (png_get_gAMA) {
+	double gamma;
+	if (!png_get_gAMA(png_ptr, info_ptr, &gamma)) {
+	    gamma = 0.45455;
+	}
+	png_set_gamma(png_ptr, 1.0, gamma);
+    }
+
     png_data= (char **) ckalloc(sizeof(char *) * info_height +
 	    info_height * block.pitch);
 
@@ -483,7 +509,7 @@ static int ChnWritePNG(interp, filename, format, blockPtr)
     FILE *outfile = NULL;
     png_structp png_ptr;
     png_infop info_ptr;
-    Tcl_DString nameBuffer; 
+    Tcl_DString nameBuffer;
     char *fullname;
     int result;
     cleanup_info cleanup;
@@ -506,7 +532,7 @@ static int ChnWritePNG(interp, filename, format, blockPtr)
 
     png_ptr=png_create_write_struct(PNG_LIBPNG_VER_STRING,
 	    (png_voidp) &cleanup,tk_png_error,tk_png_warning);
-    if (!png_ptr) return TCL_ERROR; 
+    if (!png_ptr) return TCL_ERROR;
 
     info_ptr=png_create_info_struct(png_ptr);
     if (!info_ptr) {
@@ -533,13 +559,18 @@ static int StringWritePNG(interp, dataPtr, format, blockPtr)
     MFile handle;
     int result;
     cleanup_info cleanup;
+    Tcl_DString data;
+
+    ImgFixStringWriteProc(&data, &interp, &dataPtr, &format, &blockPtr);
 
     cleanup.interp = interp;
     cleanup.data = (char **) NULL;
 
     png_ptr=png_create_write_struct(PNG_LIBPNG_VER_STRING,
 	    (png_voidp) &cleanup,tk_png_error,tk_png_warning);
-    if (!png_ptr) return TCL_ERROR; 
+    if (!png_ptr) {
+	return TCL_ERROR;
+    }
 
     info_ptr = png_create_info_struct(png_ptr);
     if (!info_ptr) {
@@ -553,6 +584,9 @@ static int StringWritePNG(interp, dataPtr, format, blockPtr)
 
     result = CommonWritePNG(interp, png_ptr, info_ptr, format, blockPtr);
     ImgPutc(IMG_DONE, &handle);
+    if ((result == TCL_OK) && (dataPtr == &data)) {
+	Tcl_DStringResult(interp, dataPtr);
+    }
     return result;
 }
 
@@ -566,7 +600,7 @@ static int CommonWritePNG(interp, png_ptr, info_ptr, format, blockPtr)
     int greenOffset, blueOffset, alphaOffset;
     int tagcount = 0;
     Tcl_Obj **tags = (Tcl_Obj **) NULL;
-    int I, pass, number_passes, color_type;  
+    int I, pass, number_passes, color_type;
     int newPixelSize;
     png_bytep row_pointers;
     png_textp text = (png_textp) NULL;
@@ -624,6 +658,10 @@ static int CommonWritePNG(interp, png_ptr, info_ptr, format, blockPtr)
 	    color_type, PNG_INTERLACE_ADAM7, PNG_COMPRESSION_TYPE_BASE,
 	    PNG_FILTER_TYPE_BASE);
 
+    if (png_set_gAMA) {
+	png_set_gAMA(png_ptr, info_ptr, 1.0);
+    }
+
     if (tagcount > 0) {
 	png_text text;
 	for(I=0;I<tagcount;I++) {
@@ -632,7 +670,7 @@ static int CommonWritePNG(interp, png_ptr, info_ptr, format, blockPtr)
 	    text.key = Tcl_GetStringFromObj(tags[2*I+1], (int *) NULL);
 	    text.text = Tcl_GetStringFromObj(tags[2*I+2], &length);
 	    text.text_length = length;
-	    if (text.text_length>COMPRESS_THRESHOLD) { 
+	    if (text.text_length>COMPRESS_THRESHOLD) {
 		text.compression = -1;
 	    }
 	    png_set_text(png_ptr, info_ptr, &text, 1);

@@ -1,7 +1,7 @@
 # Makefile for libpng
 # TurboC++ 3.0 (Note: All modules are compiled in C mode)
 
-# To use, do "make -fmakefile.tc3"
+# To use, do "make -fmakefile.turboc3"
 
 # ------------- Turbo C++ 3.0 -------------
 MODEL=-ml
@@ -45,38 +45,38 @@ pngrutil$(O): png.h pngconf.h
 		  $(CC) -c $(CFLAGS) $*.c
 
 pngerror$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 pngmem$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 pngrio$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 pngwio$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 pngtest$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 pngtrans$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 pngwrite$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 pngwtran$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 pngwutil$(O): png.h pngconf.h
-        $(CC) -c $(CFLAGS) $*.c
+	$(CC) -c $(CFLAGS) $*.c
 
 libpng.lib: $(OBJS1) $(OBJS2) $(OBJS3)
-        $(LIB) libpng +$(OBJSL1)
-        $(LIB) libpng +$(OBJSL2)
-        $(LIB) libpng +$(OBJSL3)
+	$(LIB) libpng +$(OBJSL1)
+	$(LIB) libpng +$(OBJSL2)
+	$(LIB) libpng +$(OBJSL3)
 
 pngtest$(E): pngtest$(O) libpng.lib
-        $(CC) $(LDFLAGS) pngtest.obj libpng.lib zlib.lib
+	$(CC) $(LDFLAGS) pngtest.obj libpng.lib zlib.lib
 
 # End of makefile for libpng

@@ -79,7 +79,7 @@ CP              = copy
 RM              = del
 
 PNG_INCLUDES    = -I$(ROOT) -I$(ZLIBDIR)
-PNG_DEFINES     = -nologo -D__WIN32__ -D__WIN32DLL__
+PNG_DEFINES     = -nologo -D__WIN32__ -D__WIN32DLL__ -DWIN32 -D_WINDOWS -DZLIB_DLL
 
 PNG_CFLAGS      =       $(cdebug) $(cflags) $(cvarsdll) $(include32) \
 			$(PNG_INCLUDES) $(PNG_DEFINES)

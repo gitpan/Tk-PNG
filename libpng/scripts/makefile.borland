@@ -2,8 +2,8 @@
 # Borland C++ 4.5 (Note: All modules are compiled in C mode)
 # Will work with C++ 4.02 also
 # To build the library, do: 
-#       "make -fmakefile.bor -DMODEL=m"
-# or:   "make -fmakefile.bor -DMODEL=l"
+#       "make -fmakefile.borland -DMODEL=m"
+# or:   "make -fmakefile.borland -DMODEL=l"
 #
 # ------------- Borland C++ 4.5 -------------
 
@@ -70,38 +70,38 @@ O=obj
 
 ## variables
 OBJS = \
- png.$(O) \
- pngerror.$(O) \
- pngmem.$(O) \
- pngpread.$(O) \
- pngset.$(O) \
- pngget.$(O) \
- pngread.$(O) \
- pngrio.$(O) \
- pngrtran.$(O) \
- pngrutil.$(O) \
- pngtrans.$(O) \
- pngwrite.$(O) \
- pngwtran.$(O) \
- pngwio.$(O) \
- pngwutil.$(O)
+	png.$(O) \
+	pngerror.$(O) \
+	pngmem.$(O) \
+	pngpread.$(O) \
+	pngset.$(O) \
+	pngget.$(O) \
+	pngread.$(O) \
+	pngrio.$(O) \
+	pngrtran.$(O) \
+	pngrutil.$(O) \
+	pngtrans.$(O) \
+	pngwrite.$(O) \
+	pngwtran.$(O) \
+	pngwio.$(O) \
+	pngwutil.$(O)
 
 LIBOBJS = \
- +png.$(O) \
- +pngerror.$(O) \
- +pngmem.$(O) \
- +pngpread.$(O) \
- +pngread.$(O) \
- +pngset.$(O) \
- +pngget.$(O) \
- +pngrio.$(O) \
- +pngrtran.$(O) \
- +pngrutil.$(O) \
- +pngtrans.$(O) \
- +pngwrite.$(O) \
- +pngwtran.$(O) \
- +pngwio.$(O) \
- +pngwutil.$(O)
+	+png.$(O) \
+	+pngerror.$(O) \
+	+pngmem.$(O) \
+	+pngpread.$(O) \
+	+pngread.$(O) \
+	+pngset.$(O) \
+	+pngget.$(O) \
+	+pngrio.$(O) \
+	+pngrtran.$(O) \
+	+pngrutil.$(O) \
+	+pngtrans.$(O) \
+	+pngwrite.$(O) \
+	+pngwtran.$(O) \
+	+pngwio.$(O) \
+	+pngwutil.$(O)
 
 LIBNAME=libpng$(MODEL).lib
 
@@ -146,7 +146,7 @@ pngwutil.obj: pngwutil.c
 
 $(LIBNAME): $(OBJS)
 	-del $(LIBNAME)
-        $(LIB) $(LIBNAME) @&&|
+	$(LIB) $(LIBNAME) @&&|
 $(LIBOBJS), libpng$(MODEL)
 |
 

@@ -1,14 +1,17 @@
 Copyright (c) 1997-1998 Jan Nijtmans, and possibly others.
-Copyright (c) 1998 Nick Ing-Simmons. 
+Copyright (c) 1998 Nick Ing-Simmons.
 All rights reserved. This package believed to be free software; you can
 redistribute it and/or modify it under the same terms as Perl itself.
 
 This module contains one a collection of format handlers for Tk
 written by Jan Nijtmans, adapted for perl/Tk by Nick Ing-Simmons.
 
-It can be used in combination with Tk800.005 or later. 
+It can be used in combination with Tk800.005 or later.
 
-The "png" and "zlib" libraries must already be installed.
+The "zlib" library must already be installed.
+The "png" library is bundled with this module as libpng directory.
+If you don't already have libpng then you can install it fdrom there,
+but this process is not automated.
 
 More info about the PNG format (and sources) can be found via
 http://www.wco.com/~png/

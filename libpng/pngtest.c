@@ -1,7 +1,7 @@
 
 /* pngtest.c - a simple test program to test libpng
  *
- * libpng 1.0.3 -January 14, 1999
+ * libpng 1.0.5 - October 15, 1999
  * For conditions of distribution and use, see copyright notice in png.h
  * Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.
  * Copyright (c) 1996, 1997 Andreas Dilger
@@ -35,12 +35,30 @@
 #define PNG_DEBUG 0
 #endif
 
+/* Turn on CPU timing
+#define PNGTEST_TIMING
+*/
+
+#ifdef PNGTEST_TIMING
+static float t_start, t_stop, t_decode, t_encode, t_misc;
+#include <time.h>
+#endif
+
 #include "png.h"
+
+#ifdef PNGTEST_TIMING
+static float t_start, t_stop, t_decode, t_encode, t_misc;
+#if !defined(PNG_READ_tIME_SUPPORTED) && !defined(PNG_WRITE_tIME_SUPPORTED)
+#include <time.h>
+#endif
+#endif
 
 #if defined(PNG_TIME_RFC1123_SUPPORTED)
 static int tIME_chunk_present=0;
 static char tIME_string[30] = "no tIME chunk present in file";
 #endif /* PNG_TIME_RFC1123_SUPPORTED */
+
+static int verbose = 0;
 
 int test_one_file PNGARG((PNG_CONST char *inname, PNG_CONST char *outname));
 
@@ -60,12 +78,12 @@ static int status_dots=1;
 void
 read_row_callback(png_structp png_ptr, png_uint_32 row_number, int pass)
 {
-    if(png_ptr == NULL || row_number > 0x3fffffffL) return;
+    if(png_ptr == NULL || row_number > PNG_MAX_UINT) return;
     if(status_pass != pass)
     {
        fprintf(stdout,"\n Pass %d: ",pass);
        status_pass = pass;
-       status_dots = 30;
+       status_dots = 31;
     }
     status_dots--;
     if(status_dots == 0)
@@ -79,10 +97,23 @@ read_row_callback(png_structp png_ptr, png_uint_32 row_number, int pass)
 void
 write_row_callback(png_structp png_ptr, png_uint_32 row_number, int pass)
 {
-    if(png_ptr == NULL || row_number > 0x3fffffffL || pass > 7) return;
+    if(png_ptr == NULL || row_number > PNG_MAX_UINT || pass > 7) return;
     fprintf(stdout, "w");
 }
 
+
+#if defined(PNG_READ_USER_TRANSFORM_SUPPORTED)
+/* Example of using user transform callback (we don't transform anything,
+   but merely examine the row filters.  We set this to 256 rather than
+   5 in case illegal filter values are present.) */
+static png_uint_32 filters_used[256];
+void
+count_filters(png_structp png_ptr, png_row_infop row_info, png_bytep data)
+{
+    if(png_ptr != NULL && row_info != NULL)
+      ++filters_used[*(data-1)];
+}
+#endif
 
 #if defined(PNG_WRITE_USER_TRANSFORM_SUPPORTED)
 /* example of using user transform callback (we don't transform anything,
@@ -104,6 +135,7 @@ count_zero_samples(png_structp png_ptr, png_row_infop row_info, png_bytep data)
     *  png_byte channels      number of channels (1-4)
     *  png_byte pixel_depth   bits per pixel (depth*channels)
     */
+
 
     /* counts the number of zero samples (or zero pixels if color_type is 3 */
 
@@ -178,7 +210,6 @@ count_zero_samples(png_structp png_ptr, png_row_infop row_info, png_bytep data)
 }
 #endif /* PNG_WRITE_USER_TRANSFORM_SUPPORTED */
 
-static int verbose = 0;
 static int wrote_question = 0;
 
 #if defined(PNG_NO_STDIO)
@@ -584,10 +615,18 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
       png_set_read_status_fn(read_ptr, NULL);
    }
 
-#  if defined(PNG_WRITE_USER_TRANSFORM_SUPPORTED)
-     zero_samples=0;
-     png_set_write_user_transform_fn(write_ptr, count_zero_samples);
-#  endif
+#if defined(PNG_READ_USER_TRANSFORM_SUPPORTED)
+   {
+     int i;
+     for(i=0; i<256; i++)
+        filters_used[i]=0;
+     png_set_read_user_transform_fn(read_ptr, count_filters);
+   }
+#endif
+#if defined(PNG_WRITE_USER_TRANSFORM_SUPPORTED)
+   zero_samples=0;
+   png_set_write_user_transform_fn(write_ptr, count_zero_samples);
+#endif
 
    png_debug(0, "Reading info struct\n");
    png_read_info(read_ptr, read_info_ptr);
@@ -777,16 +816,36 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
    }
    png_debug(0, "Writing row data\n");
 
+#if defined(PNG_READ_INTERLACING_SUPPORTED) || \
+  defined(PNG_WRITE_INTERLACING_SUPPORTED)
    num_pass = png_set_interlace_handling(read_ptr);
    png_set_interlace_handling(write_ptr);
+#else
+   num_pass=1;
+#endif
 
+#ifdef PNGTEST_TIMING
+   t_stop = (float)clock();
+   t_misc += (t_stop - t_start);
+   t_start = t_stop;
+#endif
    for (pass = 0; pass < num_pass; pass++)
    {
       png_debug1(0, "Writing row data for pass %d\n",pass);
       for (y = 0; y < height; y++)
       {
          png_read_rows(read_ptr, (png_bytepp)&row_buf, (png_bytepp)NULL, 1);
+#ifdef PNGTEST_TIMING
+         t_stop = (float)clock();
+         t_decode += (t_stop - t_start);
+         t_start = t_stop;
+#endif
          png_write_rows(write_ptr, (png_bytepp)&row_buf, 1);
+#ifdef PNGTEST_TIMING
+         t_stop = (float)clock();
+         t_encode += (t_stop - t_start);
+         t_start = t_stop;
+#endif
       }
    }
 
@@ -859,7 +918,7 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
 
       if (png_memcmp(inbuf, outbuf, num_in))
       {
-         fprintf(STDERR, "Files %s and %s are different\n", inname, outname);
+         fprintf(STDERR, "\nFiles %s and %s are different\n", inname, outname);
          if(wrote_question == 0)
          {
             fprintf(STDERR,
@@ -885,8 +944,8 @@ test_one_file(PNG_CONST char *inname, PNG_CONST char *outname)
 
 /* input and output filenames */
 #ifdef RISCOS
-PNG_CONST char *inname = "pngtest/png";
-PNG_CONST char *outname = "pngout/png";
+static PNG_CONST char *inname = "pngtest/png";
+static PNG_CONST char *outname = "pngout/png";
 #else
 static PNG_CONST char *inname = "pngtest.png";
 static PNG_CONST char *outname = "pngout.png";
@@ -973,7 +1032,7 @@ main(int argc, char *argv[])
 #endif
       for (i=2; i<argc; ++i)
       {
-         int kerror;
+         int k, kerror;
          fprintf(STDERR, "Testing %s:",argv[i]);
          kerror = test_one_file(argv[i], outname);
          if (kerror == 0)
@@ -982,6 +1041,12 @@ main(int argc, char *argv[])
             fprintf(STDERR, " PASS (%lu zero samples)\n",zero_samples);
 #else
             fprintf(STDERR, " PASS\n");
+#endif
+#if defined(PNG_READ_USER_TRANSFORM_SUPPORTED)
+            for (k=0; k<256; k++)
+               if(filters_used[k])
+                  fprintf(STDERR, " Filter %d was used %lu times\n",
+                     k,filters_used[k]);
 #endif
 #if defined(PNG_TIME_RFC1123_SUPPORTED)
          if(tIME_chunk_present != 0)
@@ -1011,7 +1076,9 @@ main(int argc, char *argv[])
 #endif
       }
 #ifdef PNG_USER_MEM_SUPPORTED
-         fprintf(STDERR, "Maximum memory allocation: %d bytes\n",
+         fprintf(STDERR, " Current memory allocation: %d bytes\n",
+            current_allocation);
+         fprintf(STDERR, " Maximum memory allocation: %d bytes\n",
             maximum_allocation);
 #endif
    }
@@ -1032,14 +1099,21 @@ main(int argc, char *argv[])
          {
             if(verbose == 1 || i == 2)
             {
+                int k;
 #if defined(PNG_WRITE_USER_TRANSFORM_SUPPORTED)
                 fprintf(STDERR, " PASS (%lu zero samples)\n",zero_samples);
 #else
                 fprintf(STDERR, " PASS\n");
 #endif
+#if defined(PNG_READ_USER_TRANSFORM_SUPPORTED)
+                for (k=0; k<256; k++)
+                   if(filters_used[k])
+                      fprintf(STDERR, " Filter %d was used %lu times\n",
+                         k,filters_used[k]);
+#endif
 #if defined(PNG_TIME_RFC1123_SUPPORTED)
-         if(tIME_chunk_present != 0)
-            fprintf(STDERR, " tIME = %s\n",tIME_string);
+             if(tIME_chunk_present != 0)
+                fprintf(STDERR, " tIME = %s\n",tIME_string);
 #endif /* PNG_TIME_RFC1123_SUPPORTED */
             }
          }
@@ -1067,10 +1141,26 @@ main(int argc, char *argv[])
 #endif
        }
 #ifdef PNG_USER_MEM_SUPPORTED
-       fprintf(STDERR, "Maximum memory allocation: %d bytes\n",
+       fprintf(STDERR, " Current memory allocation: %d bytes\n",
+          current_allocation);
+       fprintf(STDERR, " Maximum memory allocation: %d bytes\n",
           maximum_allocation);
 #endif
    }
+
+#ifdef PNGTEST_TIMING
+   t_stop = (float)clock();
+   t_misc += (t_stop - t_start);
+   t_start = t_stop;
+   fprintf(STDERR," CPU time used = %.3f seconds",
+      (t_misc+t_decode+t_encode)/(float)CLOCKS_PER_SEC);
+   fprintf(STDERR," (decoding %.3f,\n",
+      t_decode/(float)CLOCKS_PER_SEC);
+   fprintf(STDERR,"        encoding %.3f ,",
+      t_encode/(float)CLOCKS_PER_SEC);
+   fprintf(STDERR," other %.3f seconds)\n\n",
+      t_misc/(float)CLOCKS_PER_SEC);
+#endif
 
    if (ierror == 0)
       fprintf(STDERR, "libpng passes test\n");
@@ -1079,3 +1169,10 @@ main(int argc, char *argv[])
    return (int)(ierror != 0);
 }
 
+/* Generate a compiler error if there is an old png.h in the search path. */
+void
+png_check_pngtest_version
+   (version_1_0_5 png_h_is_not_version_1_0_5)
+{
+   if(png_h_is_not_version_1_0_5 == NULL) return;
+}

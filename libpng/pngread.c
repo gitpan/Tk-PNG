@@ -1,7 +1,7 @@
 
 /* pngread.c - read a PNG file
  *
- * libpng 1.0.3 - January 14, 1999
+ * libpng 1.0.5 - October 15, 1999
  * For conditions of distribution and use, see copyright notice in png.h
  * Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.
  * Copyright (c) 1996, 1997 Andreas Dilger
@@ -188,7 +188,8 @@ png_read_info(png_structp png_ptr, png_infop info_ptr)
       png_reset_crc(png_ptr);
       png_crc_read(png_ptr, png_ptr->chunk_name, 4);
 
-      png_debug1(0, "Reading %s chunk.\n", png_ptr->chunk_name);
+      png_debug2(0, "Reading %s chunk, length=%d.\n", png_ptr->chunk_name,
+         length);
 
       /* This should be a binary subdivision search or a hash for
        * matching the chunk name rather than a linear search.
@@ -464,10 +465,8 @@ png_read_row(png_structp png_ptr, png_bytep row, png_bytep dsp_row)
    png_ptr->row_info.channels = png_ptr->channels;
    png_ptr->row_info.bit_depth = png_ptr->bit_depth;
    png_ptr->row_info.pixel_depth = png_ptr->pixel_depth;
-   {
-      png_ptr->row_info.rowbytes = ((png_ptr->row_info.width *
-         (png_uint_32)png_ptr->row_info.pixel_depth + 7) >> 3);
-   }
+   png_ptr->row_info.rowbytes = ((png_ptr->row_info.width *
+      (png_uint_32)png_ptr->row_info.pixel_depth + 7) >> 3);
 
    png_read_filter_row(png_ptr, &(png_ptr->row_info),
       png_ptr->row_buf + 1, png_ptr->prev_row + 1,
@@ -530,7 +529,7 @@ png_read_row(png_structp png_ptr, png_bytep row, png_bytep dsp_row)
  * not called png_set_interlace_handling(), the display_row buffer will
  * be ignored, so pass NULL to it.
  *
- * [*] png_handle_alpha() does not exist yet, as of libpng version 1.0.3.
+ * [*] png_handle_alpha() does not exist yet, as of libpng version 1.0.5.
  */
 
 void
@@ -579,7 +578,7 @@ png_read_rows(png_structp png_ptr, png_bytepp row,
  * only call this function once.  If you desire to have an image for
  * each pass of a interlaced image, use png_read_rows() instead.
  *
- * [*] png_handle_alpha() does not exist yet, as of libpng version 1.0.3.
+ * [*] png_handle_alpha() does not exist yet, as of libpng version 1.0.5.
  */
 void
 png_read_image(png_structp png_ptr, png_bytepp image)
@@ -590,7 +589,16 @@ png_read_image(png_structp png_ptr, png_bytepp image)
 
    png_debug(1, "in png_read_image\n");
    /* save jump buffer and error functions */
+
+#ifdef PNG_READ_INTERLACING_SUPPORTED
    pass = png_set_interlace_handling(png_ptr);
+#else
+   if (png_ptr->interlaced)
+      png_error(png_ptr,
+        "Cannot read interlaced image -- interlace handler disabled.");
+   pass = 1;
+#endif
+
 
    image_height=png_ptr->height;
    png_ptr->num_rows = image_height; /* Make sure this is set correctly */
@@ -805,8 +813,11 @@ png_read_destroy(png_structp png_ptr, png_infop info_ptr, png_infop end_info_ptr
 #endif
    if (png_ptr->flags & PNG_FLAG_FREE_PALETTE)
       png_zfree(png_ptr, png_ptr->palette);
+#if defined(PNG_READ_tRNS_SUPPORTED) || defined(PNG_WRITE_tRNS_SUPPORTED) || \
+    defined(PNG_READ_EXPAND_SUPPORTED) || defined(PNG_READ_BACKGROUND_SUPPORTED)
    if (png_ptr->flags & PNG_FLAG_FREE_TRANS)
       png_free(png_ptr, png_ptr->trans);
+#endif
 #if defined(PNG_READ_hIST_SUPPORTED)
    if (png_ptr->flags & PNG_FLAG_FREE_HIST)
       png_free(png_ptr, png_ptr->hist);

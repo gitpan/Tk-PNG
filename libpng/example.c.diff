@@ -1,0 +1,19 @@
+*** example.c.orig	Sat Oct 16 20:35:30 1999
+--- example.c	Sat Oct 16 20:37:57 1999
+***************
+*** 227,233 ****
+     int intent;
+  
+     if (png_get_sRGB(png_ptr, info_ptr, &intent))
+!       png_set_sRGB(png_ptr, intent, 0);
+     else
+     {
+        double image_gamma;
+--- 227,233 ----
+     int intent;
+  
+     if (png_get_sRGB(png_ptr, info_ptr, &intent))
+!       png_set_sRGB(png_ptr, info_ptr, 0);
+     else
+     {
+        double image_gamma;

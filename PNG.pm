@@ -2,7 +2,7 @@ package Tk::PNG;
 require DynaLoader;
 
 use vars qw($VERSION);
-$VERSION = '2.003'; # $Id: //depot/tkPNG/PNG.pm#4 $
+$VERSION = '2.005'; # $Id: //depot/tkPNG/PNG.pm#5 $
 
 use Tk 800.005;
 require Tk::Image;
@@ -18,7 +18,7 @@ __END__
 
 =head1 NAME
 
-Tk::PNG - PNG loader for Tk::Photo 
+Tk::PNG - PNG loader for Tk::Photo
 
 =head1 SYNOPSIS
 
@@ -26,7 +26,7 @@ Tk::PNG - PNG loader for Tk::Photo
   use Tk::PNG;
 
   my $image = $widget->Photo('-format' => 'png', -file => 'something.png');
-  
+
 
 =head1 DESCRIPTION
 
